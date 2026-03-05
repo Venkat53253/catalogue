@@ -42,7 +42,7 @@ pipeline {
     post {
         always {
             echo 'not completed'
-            deleteder()    
+            deleteDir()    
         }
         success {
             echo 'sucess'
