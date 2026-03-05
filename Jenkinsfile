@@ -2,7 +2,7 @@ pipeline {
     agent {
         label 'agent1'
     }
-     enviornment {
+     environment {
         appVersion = ''
     }
     options {
