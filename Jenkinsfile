@@ -14,11 +14,7 @@ pipeline {
         disableConcurrentBuilds()
     }
      parameters {
-        string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
-        text(name: 'BIOGRAPHY', defaultValue: '', description: 'Enter some information about the person')
-        booleanParam(name: 'TOGGLE', defaultValue: true, description: 'Toggle this value')
-        choice(name: 'CHOICE', choices: ['One', 'Two', 'Three'], description: 'Pick something')
-        password(name: 'PASSWORD', defaultValue: 'SECRET', description: 'Enter a password') 
+        booleanParam(name: 'deploy', defaultValue: false, description: 'Toggle this value') 
     } 
     // Build
     stages {
@@ -73,7 +69,35 @@ pipeline {
                 }
             }
         }
-        
+        stage('Sonar Scan') {
+            environment {
+                scannerHome = tool 'sonar-8.2'
+            }
+            steps {
+                script {
+                   // Sonar Server envrionment
+                   withSonarQubeEnv(installationName: 'sonar-8.2') {
+                         sh "${scannerHome}/bin/sonar-scanner"
+                   }
+                }
+            }
+        }
+        stage('Trigger Deploy') {
+            when {
+                expression { params.deploy == true }   // ✅ valid param
+            }
+            steps {
+                script {
+                    build job: 'catalogue-cd',
+                          parameters: [
+                              string(name: 'appVersion', value: "${env.appVersion}"),
+                              string(name: 'deploy_to', value: 'dev')
+                          ],
+                          propagate: false,
+                          wait: false
+                }
+            }
+        }
     }
 
     post {
