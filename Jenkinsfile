@@ -66,6 +66,13 @@ pipeline {
                 }
             }
         }
+        // Enable webhook in sonarqube server and wait for results
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                waitForQualityGate abortPipeline: true }
+            }
+        } 
         stage('Trigger Deploy') {
             when {
                 expression { params.deploy == true }   // ✅ valid param
