@@ -37,18 +37,11 @@ pipeline {
                 }
             }
         }
-        stage ('test') {
-            steps {
-                script {
-                    echo 'building'
-                }
-            }
-        }
         stage ('UNIT TEST') {
             steps {
                 script {
                     sh """
-                        echo "test"
+                        echo "unit tests"
                     """
                 }
             }
