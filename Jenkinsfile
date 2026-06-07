@@ -114,56 +114,45 @@ pipeline {
             }
         }
         stage('Check Scan Results') {
-            steps {
-                script {
-                    withAWS(credentials: 'aws-cred', region: 'us-east-1') {
-                    // Fetch scan findings
-                        def findings = sh(
-                            script: """
-                                aws ecr describe-image-scan-findings \
-                                --repository-name ${PROJECT}/${COMPONENT} \
-                                --image-id imageTag=${appVersion} \
-                                --region ${REGION} \
-                                --output json
-                            """,
-                            returnStdout: true
-                        ).trim()
+         steps {
+         script {
+            withAWS(credentials: 'aws-cred', region: 'us-east-1') {
 
-                        // Parse JSON
-                        def json = readJSON text: findings
+                sh """
+                    aws ecr start-image-scan \
+                    --repository-name ${PROJECT}/${COMPONENT} \
+                    --image-id imageTag=${appVersion} \
+                    --region ${REGION} || true
 
-                        def highCritical = json.imageScanFindings.findings.findAll {
-                            it.severity == "HIGH" || it.severity == "CRITICAL"
-                        }
+                    sleep 60
+                """
 
-                        if (highCritical.size() > 0) {
-                            echo "❌ Found ${highCritical.size()} HIGH/CRITICAL vulnerabilities!"
-                            currentBuild.result = 'FAILURE'
-                            error("Build failed due to vulnerabilities")
-                        } else {
-                            echo "✅ No HIGH/CRITICAL vulnerabilities found."
-                        }
-                    }
+                def findings = sh(
+                    script: """
+                        aws ecr describe-image-scan-findings \
+                        --repository-name ${PROJECT}/${COMPONENT} \
+                        --image-id imageTag=${appVersion} \
+                        --region ${REGION} \
+                        --output json
+                    """,
+                    returnStdout: true
+                ).trim()
+
+                def json = readJSON text: findings
+
+                def highCritical = json.imageScanFindings.findings.findAll {
+                    it.severity == "HIGH" || it.severity == "CRITICAL"
                 }
-            }
-        }
-        stage('Trigger Deploy') {
-            when {
-                expression { params.deploy == true }   // ✅ valid param
-            }
-            steps {
-                script {
-                    build job: 'catalogue-cd',
-                          parameters: [
-                              string(name: 'appVersion', value: "${env.appVersion}"),
-                              string(name: 'deploy_to', value: 'dev')
-                          ],
-                          propagate: false,
-                          wait: false
+
+                if (highCritical.size() > 0) {
+                    error("Build failed due to vulnerabilities")
+                } else {
+                    echo "✅ No HIGH/CRITICAL vulnerabilities found."
                 }
             }
         }
     }
+}
 
     post {
         always {
