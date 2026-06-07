@@ -114,8 +114,8 @@ pipeline {
             }
         }
        stage('Check Scan Results') {
-        steps {
-            script {
+           steps {
+               script {
                 withAWS(credentials: 'aws-cred', region: 'us-east-1') {
                     sh """
                     aws ecr start-image-scan \
@@ -149,7 +149,7 @@ pipeline {
             }
         }
 
-        }
+    }
     post {
         always {
             echo 'not completed'
