@@ -37,6 +37,13 @@ pipeline {
                 }
             }
         }
+        stage ('test') {
+            steps {
+                script {
+                    echo 'building'
+                }
+            }
+        }
         stage ('UNIT TEST') {
             steps {
                 script {
@@ -113,43 +120,58 @@ pipeline {
                 }
             }
         }
-       stage('Check Scan Results') {
-           steps {
-               script {
-                withAWS(credentials: 'aws-cred', region: 'us-east-1') {
-                    sh """
-                    aws ecr start-image-scan \
-                    --repository-name ${PROJECT}/${COMPONENT} \
-                    --image-id imageTag=${appVersion} \
-                    --region ${REGION} || true
+        stage('Check Scan Results') {
+            steps {
+                script {
+                    withAWS(credentials: 'aws-cred', region: 'us-east-1') {
+                    // Fetch scan findings
+                        def findings = sh(
+                            script: """
+                                aws ecr describe-image-scan-findings \
+                                --repository-name ${PROJECT}/${COMPONENT} \
+                                --image-id imageTag=${appVersion} \
+                                --region ${REGION} \
+                                --output json
+                            """,
+                            returnStdout: true
+                        ).trim()
 
-                    sleep 60
-                      """
-                   def findings = sh(
-                    script: """
-                    aws ecr describe-image-scan-findings \
-                        --repository-name ${PROJECT}/${COMPONENT} \
-                        --image-id imageTag=${appVersion} \
-                        --region ${REGION} \
-                        --output json
-                     """,
-                     returnStdout: true
-                   ).trim()
-                   def json = readJSON text: findings
+                        // Parse JSON
+                        def json = readJSON text: findings
 
-                   def highCritical = json.imageScanFindings.findings.findAll {
-                    it.severity == "HIGH" || it.severity == "CRITICAL"
-                   }
-                   if (highCritical.size() > 0) {
-                    error("Build failed due to vulnerabilities") 
-                   } else {
+                        def highCritical = json.imageScanFindings.findings.findAll {
+                            it.severity == "HIGH" || it.severity == "CRITICAL"
+                        }
 
-                   }
+                        if (highCritical.size() > 0) {
+                            echo "❌ Found ${highCritical.size()} HIGH/CRITICAL vulnerabilities!"
+                            currentBuild.result = 'FAILURE'
+                            error("Build failed due to vulnerabilities")
+                        } else {
+                            echo "✅ No HIGH/CRITICAL vulnerabilities found."
+                        }
+                    }
                 }
             }
         }
-
+        stage('Trigger Deploy') {
+            when {
+                expression { params.deploy == true }   // ✅ valid param
+            }
+            steps {
+                script {
+                    build job: 'catalogue-cd',
+                          parameters: [
+                              string(name: 'appVersion', value: "${env.appVersion}"),
+                              string(name: 'deploy_to', value: 'dev')
+                          ],
+                          propagate: false,
+                          wait: false
+                }
+            }
+        }
     }
+
     post {
         always {
             echo 'not completed'
