@@ -113,47 +113,43 @@ pipeline {
                 }
             }
         }
-        stage('Check Scan Results') {
-         steps {
-             script {
+       stage('Check Scan Results') {
+        steps {
+            script {
                 withAWS(credentials: 'aws-cred', region: 'us-east-1') {
-
-                sh """
+                    sh """
                     aws ecr start-image-scan \
                     --repository-name ${PROJECT}/${COMPONENT} \
                     --image-id imageTag=${appVersion} \
                     --region ${REGION} || true
 
                     sleep 60
-                """
-
-                def findings = sh(
+                      """
+                   def findings = sh(
                     script: """
-                        aws ecr describe-image-scan-findings \
+                    aws ecr describe-image-scan-findings \
                         --repository-name ${PROJECT}/${COMPONENT} \
                         --image-id imageTag=${appVersion} \
                         --region ${REGION} \
                         --output json
-                    """,
-                    returnStdout: true
-                ).trim()
+                     """,
+                     returnStdout: true
+                   ).trim()
+                   def json = readJSON text: findings
 
-                def json = readJSON text: findings
-
-                def highCritical = json.imageScanFindings.findings.findAll {
+                   def highCritical = json.imageScanFindings.findings.findAll {
                     it.severity == "HIGH" || it.severity == "CRITICAL"
-                }
+                   }
+                   if (highCritical.size() > 0) {
+                    error("Build failed due to vulnerabilities") 
+                   } else {
 
-                if (highCritical.size() > 0) {
-                    error("Build failed due to vulnerabilities")
-                } else {
-                    echo "✅ No HIGH/CRITICAL vulnerabilities found."
+                   }
                 }
             }
         }
-    }
-}
 
+        }
     post {
         always {
             echo 'not completed'
