@@ -1,6 +1,13 @@
 @Library('jenkins-shared-lib') _
 
 def configMap = [
-    greeting : "Hello jenkins"
+    project : "roboshop",
+    component : "catalogue"
 ]
-samplePipeline(configMap)
+
+if( ! env.BRANCH_NAME.equalsIgnoreCase('main') ){
+  nodejsEKSPipeline(configMap) // by default it will call, call function inside this pipeline
+}
+else{
+    echo "Please proceed with PROD process"
+}
